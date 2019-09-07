@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: S3 bucket with default encryption
+Parameters:
+  DaysToIA:
+    Type: String
+    Default: "30"
+
+Resources:
+  Bucket: # cannot be deleted with data
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration: #protection from inadvertantly making bucket public
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+      BucketName: !Sub 'photos-${AWS::Region}-${AWS::AccountId}'
+      LifecycleConfiguration:
+        Rules:
+        - AbortIncompleteMultipartUpload: # removes incomplete uploads after 7 days
+            DaysAfterInitiation: 7
+          Status: Enabled
+        - Transition:
+            StorageClass: STANDARD_IA
+            TransitionInDays: !Ref DaysToIA #Transitions to IA after 90 Days
+          Status: Enabled
+    DeletionPolicy: Retain
+  IAMUser:
+    Type: AWS::IAM::User
+    Properties:
+      Policies:
+        - PolicyName: !Sub "S3-Backup-${AWS::StackName}"
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - s3:*
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:s3:::${Bucket}
+                  - !Sub arn:aws:s3:::${Bucket}/*
+      UserName: s3.sync
+
+
+Outputs:
+  BucketName:
+    Description: 'Name of the bucket'
+    Value: !Ref Bucket
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketName'
+  IAMUser:
+    Description: 'Name of the IAM User'
+    Value: !Ref IAMUser
+    Export:
+      Name: !Sub '${AWS::StackName}-IAMUser'
